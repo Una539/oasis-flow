@@ -1,0 +1,13 @@
+[package]
+name = "oasis-flow"
+version = "0.1.0"
+edition = "2024"
+description = "A focused todo + pomodoro CLI"
+license = "MPL-2.0"
+
+[dependencies]
+chrono = { version = "0.4.44", features = ["serde"] }
+clap = { version = "4.6.0", features = ["derive"] }
+serde = { version = "1.0.228", features = ["derive"] }
+toml = "1.0.6"
+uuid = { version = "1.22.0", features = ["serde", "v4"] }
