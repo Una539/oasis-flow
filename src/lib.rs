@@ -7,17 +7,12 @@
 // src/lib.rs
 mod models;
 
+use clap::builder::Str;
+
 use crate::models::{Todo, TodoList};
 use std::error::Error;
 
-pub enum TodoAction {
-    Add(String),
-    Done(String),
-    Remove(String),
-    List,
-}
-
-pub fn run(file_path: &str, content: String) -> Result<(), Box<dyn Error>> {
+pub fn run_add(file_path: &str, content: String) -> Result<(), Box<dyn Error>> {
     let mut tdlist = if std::path::Path::new(file_path).exists() {
         let content = std::fs::read_to_string(file_path)?;
         toml::from_str(&content).unwrap_or_else(|_| TodoList::new())
@@ -35,6 +30,52 @@ pub fn run(file_path: &str, content: String) -> Result<(), Box<dyn Error>> {
         let new_todo = Todo::new(content.clone());
         tdlist.add(new_todo);
         println!("添加新任务: {}", content);
+    }
+
+    let toml_str = toml::to_string_pretty(&tdlist)?;
+    std::fs::write(file_path, toml_str)?;
+    Ok(())
+}
+
+pub fn run_finish(file_path: &str, content: String) -> Result<(), Box<dyn Error>> {
+    let mut tdlist = if std::path::Path::new(file_path).exists() {
+        let content = std::fs::read_to_string(file_path)?;
+        toml::from_str(&content).unwrap_or_else(|_| TodoList::new())
+    } else {
+        TodoList::new()
+    };
+
+    let existing_todo = tdlist
+        .todos
+        .values_mut()
+        .find(|t| t.get_content() == content);
+    if let Some(todo) = existing_todo {
+        println!("完成任务: {}", todo.finished());
+    } else {
+        println!("没有该任务: {}", content);
+    }
+
+    let toml_str = toml::to_string_pretty(&tdlist)?;
+    std::fs::write(file_path, toml_str)?;
+    Ok(())
+}
+
+pub fn run_edit(file_path: &str, before: String, after: String) -> Result<(), Box<dyn Error>> {
+    let mut tdlist = if std::path::Path::new(file_path).exists() {
+        let content = std::fs::read_to_string(file_path)?;
+        toml::from_str(&content).unwrap_or_else(|_| TodoList::new())
+    } else {
+        TodoList::new()
+    };
+
+    let existing_todo = tdlist
+        .todos
+        .values_mut()
+        .find(|t| t.get_content() == before);
+    if let Some(todo) = existing_todo {
+        println!("修改该任务为: {}", todo.edit(after));
+    } else {
+        println!("没有该任务: {}", before);
     }
 
     let toml_str = toml::to_string_pretty(&tdlist)?;

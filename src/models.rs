@@ -24,13 +24,15 @@ impl Todo {
         }
     }
 
-    pub fn finished(&mut self) {
+    pub fn finished(&mut self) -> &str{
         self.finished = true;
         self.finished_at = Some(Utc::now());
+        &self.content
     }
 
-    pub fn edit(&mut self, new_content: String) {
+    pub fn edit(&mut self, new_content: String) -> &str{
         self.content = new_content;
+        &self.content
     }
 
     pub fn get_content(&self) -> &str {

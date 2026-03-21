@@ -317,8 +317,8 @@ dependencies = [
 ]
 
 [[package]]
-name = "oasis-flow"
-version = "0.1.0"
+name = "oasis_flow"
+version = "0.2.0"
 dependencies = [
  "chrono",
  "clap",
