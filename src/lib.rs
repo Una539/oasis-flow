@@ -4,14 +4,14 @@
 // License, v. 2.0. If a copy of the MPL was not distributed with this
 // file, You can obtain one at http://mozilla.org/MPL/2.0/.
 
-//! # oasistodo
+//! # oflow
 //!
 //! A focused todo + pomodoro CLI library.
 //!
 //! ## Quick Start
 //!
 //! ```rust
-//! use oasistodo::TodoManager;
+//! use oflow::TodoManager;
 //!
 //! #[tokio::main]
 //! async fn main() -> Result<(), Box<dyn std::error::Error>> {

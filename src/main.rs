@@ -9,7 +9,7 @@
 //! This binary provides a command-line interface for managing todos.
 //! For using oasistodo as a library in your Rust project, see [`oasistodo`](crate).
 
-use oasistodo::{Cli, TodoList, execute_command};
+use oflow::{Cli, TodoList, execute_command};
 use clap::Parser;
 use directories::ProjectDirs;
 use sqlx::SqlitePool;
