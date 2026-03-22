@@ -12,15 +12,40 @@ use std::error::Error;
 #[derive(Parser)]
 #[command(author, version, about, long_about = None)]
 pub struct Cli {
+    /// Custom data directory path (defaults to OS-specific data directory)
+    /// This directory should contain todos.db and todos.toml
+    #[arg(short, long, default_value = None)]
+    pub data_dir: Option<String>,
+
     #[command(subcommand)]
     pub command: Commands,
 }
 
 #[derive(Subcommand)]
 pub enum Commands {
+    /// Add a new todo item
+    ///
+    /// Example: oflow add "Buy milk"
     Add { content: String },
+
+    /// Mark a todo as finished
+    ///
+    /// Example: oflow finish "Buy milk"
     Finish { content: String },
-    Edit { find: String, replace: String },
+
+    /// Edit an existing todo's content
+    ///
+    /// Example: oflow edit "Buy milk" "Buy eggs"
+    Edit {
+        /// The content to search for
+        find: String,
+        /// The new content to replace with
+        replace: String,
+    },
+
+    /// Clean all finished/completed todos
+    ///
+    /// Example: oflow clean
     Clean,
 }
 

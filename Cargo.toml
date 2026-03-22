@@ -1,9 +1,17 @@
 [package]
 name = "oflow"
-version = "0.2.0"
+version = "0.3.0"
 edition = "2024"
 description = "A focused todo + pomodoro CLI"
 license = "MPL-2.0"
+
+[lib]
+name = "oflow"
+path = "src/lib.rs"
+
+[[bin]]
+name = "oflow"
+path = "src/main.rs"
 
 [dependencies]
 anyhow = "1.0.102"
@@ -14,3 +22,4 @@ sqlx = { version = "0.8", features = [ "runtime-tokio", "tls-rustls-ring-native-
 tokio = { version = "1.50.0", features = ["full"] }
 toml = "1.0.6"
 uuid = { version = "1.22.0", features = ["serde", "v4"] }
+directories = "6.0"

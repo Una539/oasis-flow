@@ -45,6 +45,16 @@ impl TodoList {
         Ok(())
     }
 
+    /// Find a todo by its content.
+    ///
+    /// # Arguments
+    ///
+    /// * `pool` - Database connection pool
+    /// * `content` - Content to search for
+    ///
+    /// # Returns
+    ///
+    /// Returns the Todo if found, None otherwise.
     pub async fn find_by_content(pool: &SqlitePool, content: &str) -> anyhow::Result<Option<Todo>> {
         let res = sqlx::query_as::<_, Todo>("SELECT * FROM todos WHERE content = ? LIMIT 1")
             .bind(content)
