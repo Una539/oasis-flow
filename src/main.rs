@@ -4,12 +4,12 @@
 // License, v. 2.0. If a copy of the MPL was not distributed with this
 // file, You can obtain one at http://mozilla.org/MPL/2.0/.
 
-//! Main binary entry point for oflow CLI.
+//! Main binary entry point for oasistodo CLI.
 //!
 //! This binary provides a command-line interface for managing todos.
-//! For using oflow as a library in your Rust project, see [`oflow`](crate).
+//! For using oasistodo as a library in your Rust project, see [`oasistodo`](crate).
 
-use oflow::{Cli, TodoList, execute_command};
+use oasistodo::{Cli, TodoList, execute_command};
 use clap::Parser;
 use directories::ProjectDirs;
 use sqlx::SqlitePool;
@@ -27,7 +27,7 @@ fn get_data_dir(data_dir_option: Option<String>, is_release: bool) -> PathBuf {
     }
 
     // Only use OS-specific data directory in release mode
-    if is_release && let Some(proj_dirs) = ProjectDirs::from("com", "oflow", "oflow") {
+    if is_release && let Some(proj_dirs) = ProjectDirs::from("com", "oasistodo", "oasistodo") {
         let data_dir = proj_dirs.data_dir().to_path_buf();
         // Create directory if it doesn't exist
         if !data_dir.exists() {
