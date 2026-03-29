@@ -1,5 +1,7 @@
 # Oasis Flow (oflow)
 
+[English](README.md) | [中文](README_CN.md)
+
 一个基于 Rust 开发的待办事项 CLI 工具与 Rust 库。
 
 ## 功能特性
@@ -11,6 +13,10 @@
 - **列出任务**：显示所有任务及其完成状态
 - **TUI 模式**：交互式终端界面，支持 vim 风格快捷键
 - **库 API**：通过 [`TodoManager`] 将 `oflow` 作为 Rust 库使用
+
+## 路线图
+
+详见 [ROADMAP.md](ROADMAP.md)。
 
 ## 安装
 
@@ -147,11 +153,6 @@ src/
     └── ui.rs        # Ratatui 渲染
 migrations/          # SQLx 数据库迁移
 ```
-
-## 语言
-
-- [English](README.md)
-- [中文](README_CN.md)
 
 ## 许可证
 

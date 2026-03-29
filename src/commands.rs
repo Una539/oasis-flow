@@ -7,7 +7,7 @@
 use crate::models::TodoList;
 use clap::{Parser, Subcommand};
 use sqlx::SqlitePool;
-use std::path::PathBuf;
+use std::path::Path;
 
 #[derive(Parser)]
 #[command(author, version, about, long_about = None)]
@@ -68,7 +68,7 @@ pub async fn execute_command(
     cli: Cli,
     mut tdlist: TodoList,
     pool: &SqlitePool,
-    data_dir: &PathBuf,
+    data_dir: &Path,
 ) -> color_eyre::Result<TodoList> {
     match cli.command {
         Commands::Add { content } => {

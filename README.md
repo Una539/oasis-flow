@@ -1,5 +1,7 @@
 # Oasis Flow (oflow)
 
+[English](README.md) | [中文](README_CN.md)
+
 A focused todo CLI tool and Rust library built with Rust.
 
 ## Features
@@ -11,6 +13,10 @@ A focused todo CLI tool and Rust library built with Rust.
 - **List Tasks**: Display all tasks with completion status
 - **TUI Mode**: Interactive terminal UI with vim-style keybindings
 - **Library API**: Use `oflow` as a Rust library via [`TodoManager`]
+
+## Roadmap
+
+See [ROADMAP.md](ROADMAP.md) for the full development plan.
 
 ## Installation
 
@@ -147,11 +153,6 @@ src/
     └── ui.rs        # Ratatui rendering
 migrations/          # SQLx database migrations
 ```
-
-## Language
-
-- [English](README.md)
-- [中文](README_CN.md)
 
 ## License
 
