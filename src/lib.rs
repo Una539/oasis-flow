@@ -66,15 +66,24 @@ impl TodoManager {
     /// Create a new TodoManager with automatic database initialization.
     ///
     /// This will:
-    /// 1. Connect to SQLite database (creates `todos.db` if not exists)
-    /// 2. Run migrations
-    /// 3. Load existing todos from database
+    /// 1. Create the parent directory if it doesn't exist
+    /// 2. Connect to SQLite database (creates `todos.db` if not exists)
+    /// 3. Run migrations
+    /// 4. Load existing todos from database
     ///
     /// # Errors
     ///
     /// Returns an error if database connection fails or migrations cannot run.
     pub async fn new() -> color_eyre::Result<Self> {
-        let pool = SqlitePool::connect("sqlite:todos.db").await?;
+        // Ensure parent directory exists for the database file
+        if let Some(parent) = std::path::Path::new("todos.db").parent()
+            && !parent.as_os_str().is_empty()
+            && !parent.exists()
+        {
+            std::fs::create_dir_all(parent)?;
+        }
+
+        let pool = SqlitePool::connect("sqlite:todos.db?mode=rwc").await?;
         sqlx::migrate!("./migrations").run(&pool).await?;
 
         let mut todolist = TodoList::new();
@@ -93,7 +102,15 @@ impl TodoManager {
     ///
     /// Returns an error if database connection fails or migrations cannot run.
     pub async fn with_db_path(db_path: &str) -> color_eyre::Result<Self> {
-        let pool = SqlitePool::connect(&format!("sqlite:{}", db_path)).await?;
+        // Ensure parent directory exists for the database file
+        if let Some(parent) = std::path::Path::new(db_path).parent()
+            && !parent.as_os_str().is_empty()
+            && !parent.exists()
+        {
+            std::fs::create_dir_all(parent)?;
+        }
+
+        let pool = SqlitePool::connect(&format!("sqlite:{}?mode=rwc", db_path)).await?;
         sqlx::migrate!("./migrations").run(&pool).await?;
 
         let mut todolist = TodoList::new();

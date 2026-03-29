@@ -16,9 +16,10 @@ use sqlx::SqlitePool;
 impl TodoList {
     /// Synchronize all in-memory todos to the database.
     ///
-    /// Performs an upsert (INSERT ... ON CONFLICT DO UPDATE) for each todo
-    /// in a single transaction. This ensures that the database reflects the
-    /// current state of the in-memory [`TodoList`].
+    /// Deletes database rows whose IDs are not present in the in-memory map,
+    /// then performs an upsert (INSERT ... ON CONFLICT DO UPDATE) for each
+    /// remaining todo in a single transaction. This ensures that the database
+    /// exactly reflects the current state of the in-memory [`TodoList`].
     ///
     /// # Arguments
     ///
@@ -30,6 +31,28 @@ impl TodoList {
     pub async fn sync_to_db(&self, pool: &SqlitePool) -> color_eyre::Result<()> {
         let mut tx = pool.begin().await?;
 
+        // Delete todos that exist in the database but not in memory
+        let in_memory_ids: Vec<String> = self.todos.keys().cloned().collect();
+        if in_memory_ids.is_empty() {
+            // No todos in memory — delete everything from the database
+            sqlx::query("DELETE FROM todos")
+                .execute(&mut *tx)
+                .await?;
+        } else {
+            // Build placeholders for the NOT IN clause
+            let placeholders = in_memory_ids.iter().map(|_| "?").collect::<Vec<_>>().join(",");
+            let delete_sql = format!(
+                "DELETE FROM todos WHERE id NOT IN ({})",
+                placeholders
+            );
+            let mut query = sqlx::query(&delete_sql);
+            for id in &in_memory_ids {
+                query = query.bind(id);
+            }
+            query.execute(&mut *tx).await?;
+        }
+
+        // Upsert remaining todos
         for todo in self.todos.values() {
             sqlx::query(
                 "INSERT INTO todos (id, content, created_at, finished_at, finished)
