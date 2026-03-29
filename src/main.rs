@@ -15,14 +15,14 @@ use oflow::{Cli, TodoList, execute_command};
 use sqlx::SqlitePool;
 use std::path::PathBuf;
 
-fn get_data_dir(data_dir_option: Option<String>, is_release: bool) -> PathBuf {
+fn get_data_dir(data_dir_option: Option<String>, is_release: bool) -> color_eyre::Result<PathBuf> {
     // If user specified a custom directory, use it
     if let Some(dir) = data_dir_option {
         let path = PathBuf::from(dir);
         if !path.exists() {
-            std::fs::create_dir_all(&path).ok();
+            std::fs::create_dir_all(&path)?;
         }
-        return path;
+        return Ok(path);
     }
 
     // Only use OS-specific data directory in release mode
@@ -30,13 +30,13 @@ fn get_data_dir(data_dir_option: Option<String>, is_release: bool) -> PathBuf {
         let data_dir = proj_dirs.data_dir().to_path_buf();
         // Create directory if it doesn't exist
         if !data_dir.exists() {
-            std::fs::create_dir_all(&data_dir).ok();
+            std::fs::create_dir_all(&data_dir)?;
         }
-        return data_dir;
+        return Ok(data_dir);
     }
 
     // Fallback to current directory
-    PathBuf::from(".")
+    Ok(PathBuf::from("."))
 }
 
 #[cfg(not(debug_assertions))]
@@ -50,7 +50,7 @@ async fn main() -> color_eyre::Result<()> {
     color_eyre::install()?;
 
     let cli = Cli::parse();
-    let data_dir = get_data_dir(cli.data_dir.clone(), IS_RELEASE);
+    let data_dir = get_data_dir(cli.data_dir.clone(), IS_RELEASE)?;
 
     let todos_toml_path = data_dir.join("todos.toml");
     let todos_db_path = data_dir.join("todos.db");
@@ -75,7 +75,7 @@ async fn main() -> color_eyre::Result<()> {
     }
     // Neither existed: empty list, empty DB — nothing to seed
 
-    tdlist = execute_command(cli, tdlist, &pool).await?;
+    tdlist = execute_command(cli, tdlist, &pool, &data_dir).await?;
 
     tdlist.write_to_file(todos_toml_path.to_str().unwrap_or("todos.toml"))?;
     Ok(())

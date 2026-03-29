@@ -7,6 +7,7 @@
 use crate::models::TodoList;
 use clap::{Parser, Subcommand};
 use sqlx::SqlitePool;
+use std::path::PathBuf;
 
 #[derive(Parser)]
 #[command(author, version, about, long_about = None)]
@@ -56,12 +57,18 @@ pub enum Commands {
     ///
     /// Example: oflow tui
     Tui,
+
+    /// Show data file paths
+    ///
+    /// Example: oflow path
+    Path,
 }
 
 pub async fn execute_command(
     cli: Cli,
     mut tdlist: TodoList,
     pool: &SqlitePool,
+    data_dir: &PathBuf,
 ) -> color_eyre::Result<TodoList> {
     match cli.command {
         Commands::Add { content } => {
@@ -81,6 +88,13 @@ pub async fn execute_command(
         }
         Commands::Tui => {
             tdlist = crate::tui::app::run_tui(tdlist)?;
+        }
+        Commands::Path => {
+            let db_path = data_dir.join("todos.db");
+            let toml_path = data_dir.join("todos.toml");
+            println!("Data directory: {}", data_dir.display());
+            println!("Database:       {}", db_path.display());
+            println!("TOML export:    {}", toml_path.display());
         }
     }
 
