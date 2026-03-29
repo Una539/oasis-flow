@@ -6,31 +6,51 @@
 
 //! # oflow
 //!
-//! A focused todo + pomodoro CLI library.
+//! A focused todo CLI library.
+//!
+//! `oflow` provides both a command-line interface and a Rust library for managing
+//! todo items backed by SQLite. Use [`TodoManager`] as the high-level API, or
+//! work directly with [`TodoList`] and [`Todo`] for lower-level control.
 //!
 //! ## Quick Start
 //!
-//! ```rust
+//! ```rust,no_run
 //! use oflow::TodoManager;
 //!
 //! #[tokio::main]
-//! async fn main() -> Result<(), Box<dyn std::error::Error>> {
+//! async fn main() -> color_eyre::Result<()> {
 //!     let mut manager = TodoManager::new().await?;
 //!     manager.add("Buy milk").await?;
 //!     manager.finish("Buy milk").await?;
+//!     manager.clean().await?;
+//!
+//!     for todo in manager.list() {
+//!         println!("{}", todo);
+//!     }
 //!     Ok(())
 //! }
 //! ```
+//!
+//! ## Modules
+//!
+//! - [`commands`] — CLI argument parsing and command dispatch (via `clap`).
+//! - [`database`] — Database persistence layer: sync, load, and query helpers
+//!   implemented on [`TodoList`].
+//! - [`models`] — Core data types: [`Todo`] and [`TodoList`].
 
 pub mod commands;
+/// Database persistence operations for [`TodoList`].
+///
+/// Provides `sync_to_db`, `load_from_db`, and `find_by_content` methods
+/// that are attached to [`TodoList`] via `impl` blocks in this module.
 pub mod database;
 pub mod models;
+mod tui;
 
 // Re-export public types
 pub use commands::{Cli, Commands, execute_command};
 pub use models::{Todo, TodoList};
 use sqlx::SqlitePool;
-use std::error::Error;
 
 /// A high-level manager for Todo operations.
 ///
@@ -53,7 +73,7 @@ impl TodoManager {
     /// # Errors
     ///
     /// Returns an error if database connection fails or migrations cannot run.
-    pub async fn new() -> Result<Self, Box<dyn Error>> {
+    pub async fn new() -> color_eyre::Result<Self> {
         let pool = SqlitePool::connect("sqlite:todos.db").await?;
         sqlx::migrate!("./migrations").run(&pool).await?;
 
@@ -72,7 +92,7 @@ impl TodoManager {
     /// # Errors
     ///
     /// Returns an error if database connection fails or migrations cannot run.
-    pub async fn with_db_path(db_path: &str) -> Result<Self, Box<dyn Error>> {
+    pub async fn with_db_path(db_path: &str) -> color_eyre::Result<Self> {
         let pool = SqlitePool::connect(&format!("sqlite:{}", db_path)).await?;
         sqlx::migrate!("./migrations").run(&pool).await?;
 
@@ -91,7 +111,7 @@ impl TodoManager {
     /// # Errors
     ///
     /// Returns an error if database operation fails.
-    pub async fn add(&mut self, content: &str) -> Result<(), Box<dyn Error>> {
+    pub async fn add(&mut self, content: &str) -> color_eyre::Result<()> {
         self.todolist
             .add_todo_db(content.to_string(), &self.pool)
             .await?;
@@ -108,7 +128,7 @@ impl TodoManager {
     /// # Errors
     ///
     /// Returns an error if database operation fails.
-    pub async fn finish(&mut self, content: &str) -> Result<(), Box<dyn Error>> {
+    pub async fn finish(&mut self, content: &str) -> color_eyre::Result<()> {
         self.todolist
             .finish_todo_db(content.to_string(), &self.pool)
             .await?;
@@ -126,7 +146,7 @@ impl TodoManager {
     /// # Errors
     ///
     /// Returns an error if database operation fails.
-    pub async fn edit(&mut self, find: &str, replace: &str) -> Result<(), Box<dyn Error>> {
+    pub async fn edit(&mut self, find: &str, replace: &str) -> color_eyre::Result<()> {
         self.todolist
             .edit_todo_db(find.to_string(), replace.to_string(), &self.pool)
             .await?;
@@ -139,7 +159,7 @@ impl TodoManager {
     /// # Errors
     ///
     /// Returns an error if database operation fails.
-    pub async fn clean(&mut self) -> Result<(), Box<dyn Error>> {
+    pub async fn clean(&mut self) -> color_eyre::Result<()> {
         self.todolist.clean_todo_db(&self.pool).await?;
         Ok(())
     }
@@ -168,7 +188,7 @@ impl TodoManager {
     /// # Returns
     ///
     /// Returns the Todo if found, None otherwise.
-    pub async fn get(&self, content: &str) -> Result<Option<Todo>, Box<dyn Error>> {
+    pub async fn get(&self, content: &str) -> color_eyre::Result<Option<Todo>> {
         // Query from database for the most up-to-date data
         let result = sqlx::query_as::<_, Todo>("SELECT * FROM todos WHERE content = ? LIMIT 1")
             .bind(content)

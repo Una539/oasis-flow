@@ -9,9 +9,13 @@ use serde::{Deserialize, Serialize};
 use sqlx::FromRow;
 use sqlx::SqlitePool;
 use std::collections::BTreeMap;
-use std::error::Error;
+use std::fmt::{self, Display};
 use uuid::Uuid;
 
+/// A single todo item.
+///
+/// Represents one task with a unique identifier, content, timestamps,
+/// and completion status.
 #[derive(Deserialize, Serialize, Debug, FromRow, Clone)]
 pub struct Todo {
     pub id: uuid::Uuid,
@@ -22,6 +26,7 @@ pub struct Todo {
 }
 
 impl Todo {
+    /// Create a new unfinished todo with the given content.
     pub fn new(content: String) -> Todo {
         Todo {
             id: Uuid::new_v4(),
@@ -32,12 +37,14 @@ impl Todo {
         }
     }
 
-    pub fn finished(&mut self) -> &str {
+    /// Mark this todo as finished and return its content.
+    pub fn mark_finished(&mut self) -> &str {
         self.finished = true;
         self.finished_at = Some(Utc::now());
         &self.content
     }
 
+    /// Replace the content and return the new value.
     pub fn edit(&mut self, new_content: String) -> &str {
         self.content = new_content;
         &self.content
@@ -48,6 +55,17 @@ impl Todo {
     }
 }
 
+impl Display for Todo {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        let status = if self.finished { " ✓ " } else { "   " };
+        write!(f, "[{}] {}", status, self.content)
+    }
+}
+
+/// An ordered collection of [`Todo`] items keyed by their UUID.
+///
+/// Supports file-based I/O (TOML) and database-backed operations
+/// via the [`database`](crate::database) module.
 #[derive(Deserialize, Serialize, Debug)]
 pub struct TodoList {
     #[serde(flatten)]
@@ -55,13 +73,17 @@ pub struct TodoList {
 }
 
 impl TodoList {
+    /// Create an empty todo list.
     pub fn new() -> TodoList {
         TodoList {
             todos: BTreeMap::new(),
         }
     }
 
-    pub fn read_from_file(file_path: &str) -> Result<TodoList, Box<dyn Error>> {
+    /// Read a todo list from a TOML file.
+    ///
+    /// Returns an empty list if the file does not exist or cannot be parsed.
+    pub fn read_from_file(file_path: &str) -> color_eyre::Result<TodoList> {
         let tdlist = if std::path::Path::new(file_path).exists() {
             let content = std::fs::read_to_string(file_path)?;
             toml::from_str(&content).unwrap_or_else(|_| TodoList::new())
@@ -72,71 +94,74 @@ impl TodoList {
         Ok(tdlist)
     }
 
-    pub fn write_to_file(&self, file_path: &str) -> Result<(), Box<dyn Error>> {
-        let tdlist = self;
-
-        let toml_str = toml::to_string_pretty(tdlist)?;
+    /// Write the todo list to a TOML file.
+    pub fn write_to_file(&self, file_path: &str) -> color_eyre::Result<()> {
+        let toml_str = toml::to_string_pretty(self)?;
         std::fs::write(file_path, toml_str)?;
         Ok(())
     }
 
+    /// Add a new todo via the database, skipping if content already exists.
     pub async fn add_todo_db(
         &mut self,
         content: String,
         pool: &SqlitePool,
-    ) -> Result<(), Box<dyn Error>> {
+    ) -> color_eyre::Result<()> {
         if let Some(task) = TodoList::find_by_content(pool, &content).await? {
-            println!("任务已存在: {}", task.get_content());
+            println!("Task already exists: {}", task.get_content());
         } else {
-            println!("创建任务: {}", content);
+            println!("Created task: {}", content);
             let new_todo = Todo::new(content.clone());
             self.todos.insert(new_todo.id.to_string(), new_todo);
         }
         Ok(())
     }
 
+    /// Mark a todo as finished by searching its content in the database.
     pub async fn finish_todo_db(
         &mut self,
         content: String,
         pool: &SqlitePool,
-    ) -> Result<(), Box<dyn Error>> {
+    ) -> color_eyre::Result<()> {
         if let Some(task_from_db) = TodoList::find_by_content(pool, &content).await? {
             let id_str = task_from_db.id.to_string();
             if let Some(todo) = self.todos.get_mut(&id_str) {
-                todo.finished();
-                println!("完成任务:{}", todo.content);
+                todo.mark_finished();
+                println!("Finished task: {}", todo.content);
             }
         } else {
-            println!("没有该任务:{}", content);
+            println!("Task not found: {}", content);
         }
         Ok(())
     }
 
+    /// Edit a todo's content by searching for the old value in the database.
     pub async fn edit_todo_db(
         &mut self,
         before: String,
         after: String,
         pool: &SqlitePool,
-    ) -> Result<(), Box<dyn Error>> {
+    ) -> color_eyre::Result<()> {
         if let Some(task_from_db) = TodoList::find_by_content(pool, &before).await? {
             let id_str = task_from_db.id.to_string();
             if let Some(todo) = self.todos.get_mut(&id_str) {
                 todo.edit(after);
-                println!("修改为:{}", todo.content);
+                println!("Updated task: {}", todo.content);
             }
         } else {
-            println!("没有该任务:{}", before);
+            println!("Task not found: {}", before);
         }
         Ok(())
     }
 
+    /// Remove all finished todos from both the database and in-memory map.
     pub async fn clean_todo_db(
         &mut self,
         pool: &sqlx::SqlitePool,
-    ) -> Result<(), Box<dyn std::error::Error>> {
+    ) -> color_eyre::Result<()> {
         use sqlx::Row;
 
-        // 执行删除并返回被删掉的 ID 字符串
+        // Delete finished rows and return their IDs
         let rows = sqlx::query("DELETE FROM todos WHERE finished = 1 RETURNING id")
             .fetch_all(pool)
             .await?;
@@ -147,19 +172,18 @@ impl TodoList {
         }
 
         for row in rows {
-            // 2. 告诉 sqlx 按照 Uuid 类型解码（这会自动处理 BLOB）
+            // Decode the UUID (sqlx handles BLOB automatically)
             let id: Uuid = row.try_get(0)?;
 
-            // 3. 转为 String 匹配你的 BTreeMap Key
+            // Convert to String to match BTreeMap key
             let id_str = id.to_string();
             if let Some(removed_todo) = self.todos.remove(&id_str) {
-                // 3. 在这里打印日志
                 println!(
                     "Successfully cleaned task: [{}] \"{}\" (Finished at: {:?})",
                     id_str, removed_todo.content, removed_todo.finished_at
                 );
             } else {
-                // 如果数据库里删了但内存里没找到（理论上不应该发生，除非状态不同步）
+                // DB row deleted but not found in memory (should not happen unless state is out of sync)
                 println!(
                     "Warning: Task ID {} was deleted from DB but not found in memory map.",
                     id_str
@@ -169,13 +193,37 @@ impl TodoList {
 
         Ok(())
     }
+
+    /// Print all todos to stdout.
+    pub fn list_todos(&self) {
+        println!("{}", self);
+    }
+}
+
+impl Default for TodoList {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
+impl Display for TodoList {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        if self.todos.is_empty() {
+            return write!(f, "No todos");
+        }
+        for (i, (_, todo)) in self.todos.iter().enumerate() {
+            writeln!(f, "{}. {}", i + 1, todo)?;
+        }
+
+        Ok(())
+    }
 }
 
 #[cfg(test)]
 mod performance_test {
     use super::*;
-    use sqlx::sqlite::SqlitePoolOptions;
     use sqlx::SqlitePool;
+    use sqlx::sqlite::SqlitePoolOptions;
     use std::time::Instant;
 
     async fn create_test_pool() -> SqlitePool {
@@ -224,7 +272,11 @@ mod performance_test {
 
         let elapsed = start.elapsed();
         println!("Adding 10000 todos took: {:?}", elapsed);
-        assert!(elapsed.as_secs() < 30, "Adding 10000 todos took too long: {:?}", elapsed);
+        assert!(
+            elapsed.as_secs() < 30,
+            "Adding 10000 todos took too long: {:?}",
+            elapsed
+        );
     }
 
     #[tokio::test]
@@ -237,14 +289,18 @@ mod performance_test {
         let start = Instant::now();
 
         for (_, todo) in tdlist.todos.iter_mut() {
-            todo.finished();
+            todo.mark_finished();
         }
 
         tdlist.sync_to_db(&pool).await.unwrap();
 
         let elapsed = start.elapsed();
         println!("Finishing 10000 todos took: {:?}", elapsed);
-        assert!(elapsed.as_secs() < 30, "Finishing 10000 todos took too long: {:?}", elapsed);
+        assert!(
+            elapsed.as_secs() < 30,
+            "Finishing 10000 todos took too long: {:?}",
+            elapsed
+        );
     }
 
     #[tokio::test]
@@ -254,7 +310,7 @@ mod performance_test {
 
         for i in 0..10000 {
             let mut todo = Todo::new(format!("Task to clean {}", i));
-            todo.finished();
+            todo.mark_finished();
             tdlist.todos.insert(todo.id.to_string(), todo);
         }
 
@@ -266,7 +322,11 @@ mod performance_test {
 
         let elapsed = start.elapsed();
         println!("Cleaning 10000 completed todos took: {:?}", elapsed);
-        assert!(elapsed.as_secs() < 30, "Cleaning 10000 todos took too long: {:?}", elapsed);
+        assert!(
+            elapsed.as_secs() < 30,
+            "Cleaning 10000 todos took too long: {:?}",
+            elapsed
+        );
     }
 
     #[tokio::test]
@@ -287,14 +347,17 @@ mod performance_test {
 
         let start_finish = Instant::now();
         for (_, todo) in tdlist.todos.iter_mut().take(5000) {
-            todo.finished();
+            todo.mark_finished();
         }
         tdlist.sync_to_db(&pool).await.unwrap();
         println!("Finishing 5000 todos took: {:?}", start_finish.elapsed());
 
         let start_clean = Instant::now();
         tdlist.clean_todo_db(&pool).await.unwrap();
-        println!("Cleaning 5000 completed todos took: {:?}", start_clean.elapsed());
+        println!(
+            "Cleaning 5000 completed todos took: {:?}",
+            start_clean.elapsed()
+        );
 
         let remaining = tdlist.todos.len();
         println!("Remaining todos after operations: {}", remaining);

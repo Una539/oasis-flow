@@ -4,16 +4,15 @@
 // License, v. 2.0. If a copy of the MPL was not distributed with this
 // file, You can obtain one at http://mozilla.org/MPL/2.0/.
 
-//! Main binary entry point for oasistodo CLI.
+//! Main binary entry point for oflow CLI.
 //!
-//! This binary provides a command-line interface for managing todos.
-//! For using oasistodo as a library in your Rust project, see [`oasistodo`](crate).
+//! This binary provides a cli and tui interface for managing todos.
+//! For using oflow as a library in your Rust project, see [`oflow`](crate).
 
-use oflow::{Cli, TodoList, execute_command};
 use clap::Parser;
 use directories::ProjectDirs;
+use oflow::{Cli, TodoList, execute_command};
 use sqlx::SqlitePool;
-use std::error::Error;
 use std::path::PathBuf;
 
 fn get_data_dir(data_dir_option: Option<String>, is_release: bool) -> PathBuf {
@@ -47,17 +46,34 @@ const IS_RELEASE: bool = true;
 const IS_RELEASE: bool = false;
 
 #[tokio::main]
-async fn main() -> Result<(), Box<dyn Error>> {
+async fn main() -> color_eyre::Result<()> {
+    color_eyre::install()?;
+
     let cli = Cli::parse();
     let data_dir = get_data_dir(cli.data_dir.clone(), IS_RELEASE);
 
     let todos_toml_path = data_dir.join("todos.toml");
     let todos_db_path = data_dir.join("todos.db");
 
+    let db_existed = todos_db_path.exists();
+    let toml_existed = todos_toml_path.exists();
+
+    // Read existing TOML data (returns empty list if file missing)
     let mut tdlist = TodoList::read_from_file(todos_toml_path.to_str().unwrap_or("todos.toml"))?;
-    let pool = SqlitePool::connect(&format!("sqlite:{}", todos_db_path.display())).await?;
+
+    // Connect to SQLite; mode=rwc creates the file if it doesn't exist
+    let db_url = format!("sqlite:{}?mode=rwc", todos_db_path.display());
+    let pool = SqlitePool::connect(&db_url).await?;
     sqlx::migrate!("./migrations").run(&pool).await?;
-    tdlist.sync_to_db(&pool).await?;
+
+    if db_existed {
+        // Database exists: load from it (authoritative source)
+        tdlist.load_from_db(&pool).await?;
+    } else if toml_existed {
+        // No DB but TOML exists: seed the new database from TOML data
+        tdlist.sync_to_db(&pool).await?;
+    }
+    // Neither existed: empty list, empty DB — nothing to seed
 
     tdlist = execute_command(cli, tdlist, &pool).await?;
 

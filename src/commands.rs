@@ -7,7 +7,6 @@
 use crate::models::TodoList;
 use clap::{Parser, Subcommand};
 use sqlx::SqlitePool;
-use std::error::Error;
 
 #[derive(Parser)]
 #[command(author, version, about, long_about = None)]
@@ -25,17 +24,17 @@ pub struct Cli {
 pub enum Commands {
     /// Add a new todo item
     ///
-    /// Example: oasistodo add "Buy milk"
+    /// Example: oflow add "Buy milk"
     Add { content: String },
 
     /// Mark a todo as finished
     ///
-    /// Example: oasistodo finish "Buy milk"
+    /// Example: oflow finish "Buy milk"
     Finish { content: String },
 
     /// Edit an existing todo's content
     ///
-    /// Example: oasistodo edit "Buy milk" "Buy eggs"
+    /// Example: oflow edit "Buy milk" "Buy eggs"
     Edit {
         /// The content to search for
         find: String,
@@ -45,15 +44,25 @@ pub enum Commands {
 
     /// Clean all finished/completed todos
     ///
-    /// Example: oasistodo clean
+    /// Example: oflow clean
     Clean,
+
+    /// List all the todos
+    ///
+    /// Example: oflow list
+    List,
+
+    /// Run the TUI interface
+    ///
+    /// Example: oflow tui
+    Tui,
 }
 
 pub async fn execute_command(
     cli: Cli,
     mut tdlist: TodoList,
     pool: &SqlitePool,
-) -> Result<TodoList, Box<dyn Error>> {
+) -> color_eyre::Result<TodoList> {
     match cli.command {
         Commands::Add { content } => {
             tdlist.add_todo_db(content, pool).await?;
@@ -67,6 +76,12 @@ pub async fn execute_command(
         Commands::Clean => {
             tdlist.clean_todo_db(pool).await?;
         }
+        Commands::List => {
+            tdlist.list_todos();
+        }
+        Commands::Tui => {
+            tdlist = crate::tui::app::run_tui(tdlist)?;
+        }
     }
 
     tdlist.sync_to_db(pool).await?;
@@ -79,7 +94,7 @@ mod args_test {
 
     #[test]
     fn test_add() {
-        let args = vec!["oasistodo", "add", "Buy milk"];
+        let args = vec!["oflow", "add", "Buy milk"];
         let cli = Cli::try_parse_from(args).expect("Failed to parse arguments");
 
         match cli.command {
@@ -92,7 +107,7 @@ mod args_test {
 
     #[test]
     fn test_finish() {
-        let args = vec!["oasistodo", "finish", "Buy milk"];
+        let args = vec!["oflow", "finish", "Buy milk"];
         let cli = Cli::try_parse_from(args).expect("Failed to parse arguments");
 
         match cli.command {
@@ -105,7 +120,7 @@ mod args_test {
 
     #[test]
     fn test_edit() {
-        let args = vec!["oasistodo", "edit", "Buy milk", "Buy eggs"];
+        let args = vec!["oflow", "edit", "Buy milk", "Buy eggs"];
         let cli = Cli::try_parse_from(args).expect("Failed to parse arguments");
 
         match cli.command {

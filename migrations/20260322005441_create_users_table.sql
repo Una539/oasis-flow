@@ -1,6 +1,6 @@
 -- Add migration script here
 CREATE TABLE IF NOT EXISTS todos (
-    id          TEXT PRIMARY KEY NOT NULL, -- 存储 UUID 的字符串形式
+    id          TEXT PRIMARY KEY NOT NULL, -- UUID stored as string
     content     TEXT NOT NULL,
     created_at DATETIME NOT NULL,
     finished_at DATETIME,
