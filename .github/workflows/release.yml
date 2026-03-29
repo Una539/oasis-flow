@@ -1,0 +1,149 @@
+# .github/workflows/release.yml
+
+name: Release
+
+on:
+  push:
+    tags:
+      - 'v[0-9]+.[0-9]+.[0-9]+*'
+
+permissions:
+  contents: write
+
+env:
+  BINARY_NAME: oflow   # ← 改成你的二进制名称（Cargo.toml 里的 [[bin]] name）
+
+jobs:
+  build:
+    name: Build ${{ matrix.name }}
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          # Linux x86_64 (静态链接，兼容性最好)
+          - name: linux-x86_64
+            os: ubuntu-latest
+            target: x86_64-unknown-linux-musl
+            use-cross: false
+            extra-apt: musl-tools
+
+          # Linux ARM64 (需要交叉编译)
+          - name: linux-aarch64
+            os: ubuntu-latest
+            target: aarch64-unknown-linux-gnu
+            use-cross: true
+            extra-apt: ""
+
+          # Windows x86_64
+          - name: windows-x86_64
+            os: windows-latest
+            target: x86_64-pc-windows-msvc
+            use-cross: false
+            extra-apt: ""
+
+          # macOS x86_64 (Intel)
+          - name: macos-x86_64
+            os: macos-latest
+            target: x86_64-apple-darwin
+            use-cross: false
+            extra-apt: ""
+
+          # macOS ARM64 (Apple Silicon)
+          - name: macos-aarch64
+            os: macos-latest
+            target: aarch64-apple-darwin
+            use-cross: false
+            extra-apt: ""
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      # Linux 额外依赖（musl-tools 等）
+      - name: Install system dependencies
+        if: matrix.extra-apt != ''
+        run: sudo apt-get update && sudo apt-get install -y ${{ matrix.extra-apt }}
+
+      # 安装 cross（仅在需要交叉编译时）
+      - name: Install cross
+        if: matrix.use-cross == true
+        uses: taiki-e/install-action@v2
+        with:
+          tool: cross
+
+      # 安装 Rust 工具链
+      - name: Install Rust toolchain
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: ${{ matrix.target }}
+
+      # 缓存依赖，加速二次构建
+      - name: Cache dependencies
+        uses: Swatinem/rust-cache@v2
+        with:
+          key: ${{ matrix.target }}
+
+      # 编译（cross 或 cargo）
+      - name: Build (cross)
+        if: matrix.use-cross == true
+        run: cross build --release --locked --target ${{ matrix.target }}
+
+      - name: Build (cargo)
+        if: matrix.use-cross == false
+        run: cargo build --release --locked --target ${{ matrix.target }}
+
+      # 获取版本号（去掉 refs/tags/v 前缀）
+      - name: Get version
+        shell: bash
+        run: echo "VERSION=${GITHUB_REF_NAME#v}" >> $GITHUB_ENV
+
+      # 打包：Linux/macOS → .tar.gz，Windows → .zip
+      - name: Package (Unix)
+        if: runner.os != 'Windows'
+        shell: bash
+        run: |
+          ARCHIVE="${{ env.BINARY_NAME }}-v${{ env.VERSION }}-${{ matrix.name }}.tar.gz"
+          cp target/${{ matrix.target }}/release/${{ env.BINARY_NAME }} .
+          tar -czf "$ARCHIVE" "${{ env.BINARY_NAME }}" README.md LICENSE
+          echo "ASSET=$ARCHIVE" >> $GITHUB_ENV
+
+      - name: Package (Windows)
+        if: runner.os == 'Windows'
+        shell: pwsh
+        run: |
+          $ARCHIVE = "${{ env.BINARY_NAME }}-v${{ env.VERSION }}-${{ matrix.name }}.zip"
+          Copy-Item "target\${{ matrix.target }}\release\${{ env.BINARY_NAME }}.exe" .
+          Compress-Archive -Path "${{ env.BINARY_NAME }}.exe", "README.md", "LICENSE" -DestinationPath $ARCHIVE
+          echo "ASSET=$ARCHIVE" | Out-File -FilePath $env:GITHUB_ENV -Append
+
+      # 上传构建产物（供 release job 使用）
+      - name: Upload artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: ${{ matrix.name }}
+          path: ${{ env.ASSET }}
+          retention-days: 1
+
+  # 所有平台构建完成后，统一发布 GitHub Release
+  release:
+    name: Create GitHub Release
+    needs: build
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Download all artifacts
+        uses: actions/download-artifact@v4
+        with:
+          path: artifacts
+          merge-multiple: true
+
+      - name: Create Release and upload assets
+        uses: softprops/action-gh-release@v2
+        with:
+          files: artifacts/**
+          generate_release_notes: true   # 自动从 commit 生成 changelog
+          draft: false
+          prerelease: ${{ contains(github.ref_name, '-') }}  # v1.0.0-beta 自动标记为预发布
