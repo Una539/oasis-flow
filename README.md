@@ -15,7 +15,7 @@ A focused todo CLI tool and Rust library built with Rust.
 ## Installation
 
 ```bash
-cargo install oflow
+cargo install oflow-todo
 ```
 
 ## CLI Usage

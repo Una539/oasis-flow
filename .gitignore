@@ -1,2 +1,4 @@
 /target
 /.idea
+todos.db
+todos.toml

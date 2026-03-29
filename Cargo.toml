@@ -1,6 +1,6 @@
 [package]
-name = "oflow"
-version = "0.4.0"
+name = "oflow-todo"
+version = "0.4.1"
 edition = "2024"
 description = "A focused todo CLI"
 license = "MPL-2.0"

@@ -15,7 +15,7 @@
 ## 安装
 
 ```bash
-cargo install oflow
+cargo install oflow-todo
 ```
 
 ## CLI 使用方法
